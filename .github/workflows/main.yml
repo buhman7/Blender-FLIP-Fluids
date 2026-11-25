@@ -1,0 +1,39 @@
+name: Build FLIP Fluids Windows
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSYS2 & Dependencies
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-make
+            mingw-w64-x86_64-alembic
+            mingw-w64-x86_64-imath
+            mingw-w64-x86_64-python
+
+      - name: Build Addon
+        run: |
+          export CMAKE_PREFIX_PATH=/mingw64
+          python3 build.py
+
+      - name: Upload Addon ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: FLIP-Fluids-Windows
+          path: build/bl_flip_fluids/*.zip
