@@ -25,31 +25,37 @@ jobs:
             mingw-w64-ucrt-x86_64-make
             mingw-w64-ucrt-x86_64-alembic
             mingw-w64-ucrt-x86_64-imath
-            mingw-w64-ucrt-x86_64-python
 
-      - name: Build Addon
+      - name: Compile FLIP Fluids
         run: |
-          export CMAKE_PREFIX_PATH=/ucrt64
-          python3 build.py
-          find build -maxdepth 4
+          mkdir -p build
+          cd build
+          cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+          mingw32-make -j$(nproc)
 
-      - name: Package Addon if Unzipped
+      - name: Bundle Runtime DLLs
+        run: |
+          LIB_DIR="build/bl_flip_fluids/flip_fluids_addon/ffengine/lib"
+          if [ ! -d "$LIB_DIR" ]; then
+            echo "Build failed: $LIB_DIR does not exist."
+            exit 1
+          fi
+          ldd "$LIB_DIR"/*.dll | awk '/\/ucrt64\/bin\// {print $3}' | sort -u | xargs -r cp -v -t "$LIB_DIR/"
+          ls -la "$LIB_DIR"
+
+      - name: Package Addon ZIP
         shell: pwsh
         run: |
-          $zips = Get-ChildItem -Path build -Recurse -Filter "*.zip"
-          if ($zips.Count -eq 0) {
-            $addonDir = Get-ChildItem -Path build -Recurse -Directory -Filter "flip_fluids_addon" | Select-Object -First 1
-            if ($addonDir) {
-              Compress-Archive -Path $addonDir.FullName -DestinationPath "build/flip_fluids_addon.zip" -Force
-            } else {
-              Write-Error "Build failed: flip_fluids_addon folder was not created. Check the 'Build Addon' log above."
-              exit 1
-            }
+          $addonPath = "build/bl_flip_fluids/flip_fluids_addon"
+          if (-not (Test-Path "$addonPath/__init__.py")) {
+            Write-Error "Invalid addon structure: __init__.py missing!"
+            exit 1
           }
+          Compress-Archive -Path $addonPath -DestinationPath "build/flip_fluids_addon.zip" -Force
 
       - name: Upload Addon ZIP
         uses: actions/upload-artifact@v7
         with:
           name: flip_fluids_addon.zip
-          path: build/**/*.zip
+          path: build/flip_fluids_addon.zip
           archive: false
